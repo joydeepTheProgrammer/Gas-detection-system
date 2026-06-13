@@ -77,7 +77,6 @@ A production-grade gas leak detection system using the **MQ-6 sensor** with STM3
 ### Block Diagram
 ---
 <img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/4b1aed40-b110-4ba8-b66e-baf2ee152e59" />
-
 ---
 
 ### Signal Conditioning Circuit
