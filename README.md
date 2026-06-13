@@ -47,4 +47,120 @@ Flash via ST-Link through SWD header (J2)
 Baseline is auto-acquired in clean air after 60s warm-up
 
 Adjust ALARM_THRESHOLD_PPM based on observed sensor response
- 
+
+7. Block daigram
+┌──────────────────────────────────────────────┐
+│                 5V DC INPUT                  │
+└────────────────┬─────────────────────────────┘
+                 │
+                 ├──────────────► MQ-6 Sensor
+                 │               (5V Supply)
+                 │
+                 ├──────────────► Relay Module
+                 │               (5V Coil Supply)
+                 │
+                 ├──────────────► Active Buzzer
+                 │               (5V Supply)
+                 │
+                 ▼
+      ┌──────────────────────┐
+      │   AMS1117-3.3V REG   │
+      └──────────┬───────────┘
+                 │
+                 ▼
+      ┌──────────────────────┐
+      │    STM32F103C8       │
+      │      Blue Pill       │
+      └──────────┬───────────┘
+                 │
+     ┌───────────┼───────────┬─────────────┬─────────────┐
+     │           │           │             │             │
+     ▼           ▼           ▼             ▼             ▼
+
+┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────┐
+│ MQ-6 AO │ │ MQ-6 DO │ │ LCD I2C │ │ USART1   │ │ Buzzer  │
+│ Analog  │ │ Digital │ │ 16x2    │ │ Debug    │ │ Driver  │
+└────┬────┘ └────┬────┘ └────┬────┘ └────┬─────┘ └────┬────┘
+     │           │           │           │            │
+     ▼           ▼           ▼           ▼            ▼
+
+ PA0 ADC1     PB15       PB6/PB7      PA9/PA10      PA1
+              Input       I2C1          UART1      TIM2 CH2
+
+     │
+     ▼
+┌─────────────────────────────┐
+│ ADC Sampling + DMA Buffer   │
+│ Moving Average Filter       │
+│ Voltage → PPM Conversion    │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│ Gas Detection State Machine │
+├─────────────────────────────┤
+│ STATE_SAFE                  │
+│ STATE_WARNING               │
+│ STATE_ALARM                 │
+└──────────────┬──────────────┘
+               │
+     ┌─────────┼─────────┐
+     │         │         │
+     ▼         ▼         ▼
+
+┌─────────┐ ┌─────────┐ ┌─────────┐
+│ Relay   │ │ LEDs    │ │ LCD     │
+│ Control │ │ Status  │ │ Display │
+└────┬────┘ └────┬────┘ └────┬────┘
+     │           │           │
+     ▼           ▼           ▼
+
+ PB12        PB13       I2C LCD
+ Relay       Red LED    Status
+ Driver
+
+ PB14
+ Green LED
+
+
+STATE_SAFE
+──────────
+Green LED ON
+Relay OFF
+Buzzer OFF
+LCD → SAFE
+
+STATE_WARNING
+─────────────
+Red LED ON
+Relay OFF
+Buzzer Intermittent
+LCD → WARNING
+
+STATE_ALARM
+───────────
+Red LED ON
+Relay ON
+Buzzer Continuous
+LCD → ALARM
+****
+8. Signal flow
+9. MQ-6 Sensor
+     │
+     ▼
+ADC + DO Input
+     │
+     ▼
+Filtering
+     │
+     ▼
+PPM Calculation
+     │
+     ▼
+State Machine
+     │
+     ├──► LCD Update
+     ├──► Relay Control
+     ├──► Buzzer Control
+     ├──► Red LED
+     └──► Green LED
