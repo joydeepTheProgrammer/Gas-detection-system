@@ -5,7 +5,7 @@
 **Date:** 2026-06-13  
 **Target:** STM32F103C8Tx (Cortex-M3, 72 MHz)  
 **Sensor:** MQ-6 Gas Sensor Module
- **IDE:** STM32CubeIDE / Keil / GCC ARM
+                      **IDE:** STM32CubeIDE / Keil / GCC ARM
 
 ---
 
