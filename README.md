@@ -47,5 +47,4 @@ Flash via ST-Link through SWD header (J2)
 Baseline is auto-acquired in clean air after 60s warm-up
 
 Adjust ALARM_THRESHOLD_PPM based on observed sensor response
-
-For production, replace the heuristic PPM formula with a datasheet-based lookup table
+ 
