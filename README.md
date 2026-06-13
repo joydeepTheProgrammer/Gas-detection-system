@@ -440,17 +440,6 @@ Tick=006000 ADC=2050 mV=1655 ppm=0338 DO=0 State=0
 #define SYSTEM_TICK_MS              10
 ```
 
-### Calibration Guide
-
-| Environment | Recommended Threshold |
-|-------------|----------------------|
-| Residential kitchen | 500-1000 ppm |
-| Commercial kitchen | 300-500 ppm |
-| Industrial storage | 200-300 ppm |
-| Laboratory | 100-200 ppm |
-
----
-
 ## Troubleshooting
 
 | Symptom | Possible Cause | Solution |
