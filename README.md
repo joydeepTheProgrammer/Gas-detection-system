@@ -48,7 +48,7 @@ Baseline is auto-acquired in clean air after 60s warm-up
 
 Adjust ALARM_THRESHOLD_PPM based on observed sensor response
 
-7. Block daigram
+7. Block diagram
 ┌──────────────────────────────────────────────┐
 │                 5V DC INPUT                  │
 └────────────────┬─────────────────────────────┘
@@ -145,7 +145,7 @@ Buzzer Continuous
 LCD → ALARM
 ****
 8. Signal flow
-9. MQ-6 Sensor
+   MQ-6 Sensor
      │
      ▼
 ADC + DO Input
