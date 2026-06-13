@@ -1,4 +1,4 @@
-Gas Detection & Safety System — README
+Gas Detection & Safety System
 1. System Overview
 A production-grade STM32F103C8-based gas leak detector with MQ-6 sensor, I2C LCD, relay-driven safety shutoff, and PWM buzzer. Includes KiCad schematic, HAL firmware, and schematic diagram.
 
@@ -48,5 +48,5 @@ Baseline is auto-acquired in clean air after 60s warm-up
 
 Adjust ALARM_THRESHOLD_PPM based on observed sensor response
 
-7. Block daigram
+7. Block diagram
    <img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/11a026a4-3103-4f6c-8963-d291717f7f74" />
