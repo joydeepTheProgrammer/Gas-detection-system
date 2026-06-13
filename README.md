@@ -1,4 +1,4 @@
-# Intelligent Traffic Management System
+# Traffic Management System
 
 ## Embedded Firmware v2.0
 
