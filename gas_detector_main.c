@@ -1,8 +1,8 @@
 
 /*
- * LPG Gas Detection System
+ * Gas Detection System
  * Target: STM32F103C8 (Blue Pill)
- * Sensor: MQ-6 LPG Gas Sensor Module
+ * Sensor: MQ-6 Gas Sensor Module
  * Peripherals:
  *   - ADC1 (PA0) for MQ-6 AO (analog output)
  *   - GPIO (PB15) for MQ-6 DO (digital output)
@@ -219,7 +219,7 @@ int main(void) {
     lcd_init();
     lcd_clear();
     lcd_set_cursor(0, 0);
-    lcd_print("LPG Detector");
+    lcd_print("Gas Detector");
     lcd_set_cursor(1, 0);
     lcd_print("Warming up...");
 
@@ -248,7 +248,7 @@ int main(void) {
     lcd_clear();
     lcd_set_cursor(0, 0);
     lcd_print("System Ready");
-    printf("LPG Detector initialized. Baseline=%lu, Threshold=%lu\r\n", g_baseline, g_alarm_threshold);
+    printf("Gas Detector initialized. Baseline=%lu, Threshold=%lu\r\n", g_baseline, g_alarm_threshold);
 
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
 
