@@ -63,12 +63,12 @@ A production-grade gas leak detection system using the **MQ-6 sensor** with STM3
          MQ-6 Sensor     STM32    PCF8574  LEDs
          (Powered)       F103     LCD      (3.3V)
             |               |       |       |
-         AO (0-5V)      PA0(ADC)   |       |
-         DO (TTL)       PB15(GPIO) |       |
+         AO (0-5V)      PA0(ADC)   |        |
+         DO (TTL)       PB15(GPIO) |        |
                             |       |       |
-                         PB6/PB7  (I2C)    |
+                         PB6/PB7  (I2C)     |
                             |       |       |
-                         PA1(TIM2)  Buzzer   |
+                         PA1(TIM2)  Buzzer  |
                             |               |
                          PB12          Relay (via NPN)
                             |
@@ -564,8 +564,6 @@ limited to, software source code, firmware, hardware design files (schematics,
 PCB layouts, Gerber files, BOMs, CAD files), documentation, configuration
 files, examples, and supporting materials—is made available under the MIT
 License.
-
-The following is the official, unmodified MIT License.
 
 ---
 
