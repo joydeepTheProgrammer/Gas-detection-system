@@ -3,7 +3,7 @@
  * Target: STM32F103C8 (Blue Pill)
  * Sensor: MQ-6 Gas Sensor Module
  * Peripherals:
- *   - ADC1 (PA0) for MQ-6 AO (analog output)
+ *   - ADC1 (PA0) for MQ-6 AO (analog output) 
  *   - GPIO (PB15) for MQ-6 DO (digital output)
  *   - I2C1 (PB6=SCL, PB7=SDA) for LCD 16x2 with PCF8574 backpack
  *   - GPIO (PB12) for Relay control (via NPN transistor)
