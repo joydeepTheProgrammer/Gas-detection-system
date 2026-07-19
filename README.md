@@ -1,3 +1,8 @@
+There are just a **few lingering documentation mismatches** from the older version of the code that need to be updated. The code is perfect, but the README still has some old text in a few spots. 
+
+Here is the **corrected README** with those final inconsistencies fixed (Debounce counts, ADC buffer sizes, and UART log examples):
+
+```markdown
 # Gas Detection & Safety System
 
 
@@ -30,7 +35,7 @@
 
 ## Overview
 
-A production-grade gas leak detection system using the **MQ-6 sensor** with an STM32F103C8 microcontroller. The system features real-time gas concentration monitoring, hysteresis-based state transitions with debouncing, safety relay control, PWM buzzer alarm, I2C LCD display, and UART debug logging.
+A production-grade gas leak detection system using the **MQ-6 sensor** with STM32F103C8 microcontroller. The system features real-time gas concentration monitoring, hysteresis-based state transitions with debouncing, safety relay control, PWM buzzer alarm, I2C LCD display, and UART debug logging.
 
 ### Key Features
 
@@ -39,7 +44,7 @@ A production-grade gas leak detection system using the **MQ-6 sensor** with an S
 | **Multi-Input Sensing** | Analog (ADC) + Digital (GPIO) from MQ-6 |
 | **Noise Filtering** | 16-sample DMA circular buffer with moving average |
 | **Hysteresis** | Prevents relay chattering around threshold |
-| **Debouncing** | 3-count confirmation before state change |
+| **Debouncing** | 30-count confirmation (300ms) before state change |
 | **Auto-Calibration** | 60s warm-up + 5s baseline acquisition |
 | **PWM Buzzer** | 2 kHz tone with variable duty cycle |
 | **I2C LCD** | 16x2 HD44780 via PCF8574 backpack |
@@ -129,7 +134,7 @@ MQ-6 AO (0-5V) ----[10kΩ]---+---[10kΩ]---- GND
 ```
 main()
   ├── HAL_Init()
-  ├── SystemClock_Config()      [72 MHz HSE]
+  ├── SystemClock_Config()      [72 MHz HSE, ADCCLK = 12 MHz]
   ├── MX_GPIO_Init()
   ├── MX_DMA_Init()             [DMA1_Channel1 for ADC]
   ├── MX_ADC1_Init()            [Continuous + DMA Circular]
@@ -160,7 +165,7 @@ main()
 |---------|------|-------|
 | Flash | 64 KB | Firmware code |
 | SRAM | 20 KB | Stack, heap, variables |
-| ADC Buffer | 64 bytes | 16 x 32-bit DMA samples |
+| ADC Buffer | 32 bytes | 16 x 16-bit DMA samples |
 
 ---
 
@@ -213,12 +218,12 @@ main()
 ```c
 #define ALARM_THRESHOLD_PPM     1000    /* Base threshold */
 #define HYSTERESIS_PPM          200     /* ±200 ppm hysteresis */
-#define ALARM_DEBOUNCE_COUNT    30       /* 30 confirmations required */
+#define ALARM_DEBOUNCE_COUNT    30      /* 30 confirmations required (300ms) */
 ```
 
-**SAFE → WARNING:** ppm >= (baseline + 1000 + 200) for 3 consecutive ticks  
-**WARNING → ALARM:** ppm >= (baseline + 1000 + 200 + 300) for 3 consecutive ticks  
-**ALARM → SAFE:** ppm < (baseline + 1000 - 200) for 9 consecutive ticks (3x debounce)
+**SAFE → WARNING:** ppm >= (baseline + 1000 + 200) for 30 consecutive ticks  
+**WARNING → ALARM:** ppm >= (baseline + 1000 + 200 + 300) for 30 consecutive ticks  
+**ALARM → SAFE:** ppm < (baseline + 1000 - 200) for 90 consecutive ticks (3x debounce)
 
 ---
 
@@ -253,6 +258,7 @@ sensor_mv = adc_mv * 2;
 /* Higher voltage = higher gas concentration */
 if (sensor_mv >= 5000) ppm = 9999;
 else ppm = sensor_mv / 5;
+```
 
 > **Note:** This is a simplified linear approximation. For production use, implement the full Rs/Ro curve from the MQ-6 datasheet with temperature and humidity compensation.
 
@@ -266,19 +272,18 @@ else ppm = sensor_mv / 5;
 |-----------|-------|
 | Mode | Circular |
 | Buffer Size | 16 samples |
-| Data Alignment | Word (32-bit) |
+| Data Alignment | Half-Word (16-bit) |
 | Direction | Peripheral → Memory |
 
 ### Moving Average Filter
 
 ```c
 #define ADC_BUF_LEN         16
-#define MOVING_AVG_SHIFT    4       /* divide by 16 */
 
 /* In DMA callback: */
 sum = 0;
 for (i = 0; i < 16; i++) sum += adc_buffer[i];
-filtered = sum >> 4;  /* Fast divide by 16 */
+filtered = sum / 16;  /* Average of 16 samples */
 ```
 
 | Filter Characteristic | Value |
@@ -331,18 +336,18 @@ I2C Address: 0x27 (7-bit)
 ### STM32CubeMX Configuration
 
 1. **New Project** → STM32F103C8Tx
-2. **Clock:** HSE 8MHz crystal → SYSCLK 72MHz
+2. **Clock:** HSE 8MHz crystal → SYSCLK 72MHz, ADCCLK = 12MHz (Div6)
 3. **ADC1:**
    - Channel 0 (PA0)
    - Continuous conversion mode
-   - DMA circular mode
+   - DMA circular mode (Half-Word)
    - 71.5 cycles sample time
 4. **I2C1:**
    - PB6 SCL, PB7 SDA
    - Standard mode (100 kHz)
 5. **TIM2:**
    - Channel 2 PWM (PA1)
-   - Frequency: 2 kHz
+   - Frequency: 2 kHz (Prescaler 71, Period 499)
 6. **USART1:**
    - PA9 TX, PA10 RX
    - 115200 baud, 8N1
@@ -404,13 +409,13 @@ Tick=XXXXX ADC=XXXX mV=XXXX ppm=XXXX DO=X State=X
 ### Example Output
 
 ```
-Gas Detector initialized. Baseline=2048, Threshold=3048
+Gas Detector initialized. Baseline=660 ppm, Threshold=1660 ppm
 Tick=001000 ADC=2048 mV=1650 ppm=0660 DO=0 State=0
 Tick=002000 ADC=2048 mV=1650 ppm=0660 DO=0 State=0
 Tick=003000 ADC=3120 mV=2512 ppm=1004 DO=1 State=1
 Tick=004000 ADC=3850 mV=3100 ppm=1240 DO=1 State=2
-Tick=005000 ADC=2100 mV=1695 ppm=0326 DO=0 State=2
-Tick=006000 ADC=2050 mV=1655 ppm=0338 DO=0 State=0
+Tick=005000 ADC=2100 mV=1695 ppm=0339 DO=0 State=2
+Tick=006000 ADC=2050 mV=1655 ppm=0331 DO=0 State=0
 ```
 
 | Field | Description |
@@ -435,8 +440,7 @@ Tick=006000 ADC=2050 mV=1655 ppm=0338 DO=0 State=0
 #define SENSOR_WARMUP_MS            60000       /* 60 seconds */
 #define ALARM_THRESHOLD_PPM         1000        /* Calibrate this! */
 #define HYSTERESIS_PPM              200
-#define MOVING_AVG_SHIFT            4           /* /16 */
-#define ALARM_DEBOUNCE_COUNT        3
+#define ALARM_DEBOUNCE_COUNT        30          /* 30 ticks = 300ms */
 #define BUZZER_PWM_FREQ_HZ          2000
 #define SYSTEM_TICK_MS              10
 ```
@@ -589,5 +593,4 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
+```
