@@ -250,9 +250,9 @@ adc_mv = (adc_raw * 3300) / 4095;
 sensor_mv = adc_mv * 2;
 
 /* Step 3: Convert to PPM (simplified linear model) */
-if (sensor_mv >= 4950) ppm = 0;
-else ppm = (5000 - sensor_mv) / 5;
-```
+/* Higher voltage = higher gas concentration */
+if (sensor_mv >= 5000) ppm = 9999;
+else ppm = sensor_mv / 5;
 
 > **Note:** This is a simplified linear approximation. For production use, implement the full Rs/Ro curve from the MQ-6 datasheet with temperature and humidity compensation.
 
