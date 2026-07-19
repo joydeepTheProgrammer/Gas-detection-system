@@ -1,4 +1,3 @@
-
 /*
  * Gas Detection System
  * Target: STM32F103C8 (Blue Pill)
@@ -29,6 +28,7 @@
 #include "main.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
 /* ======================== USER CONFIGURATION ========================== */
 #define ADC_BUF_LEN                 16
@@ -37,8 +37,7 @@
 #define SENSOR_WARMUP_MS            60000
 #define ALARM_THRESHOLD_PPM         1000    /* Calibrate this value */
 #define HYSTERESIS_PPM              200
-#define MOVING_AVG_SHIFT            4       /* divide by 16 */
-#define ALARM_DEBOUNCE_COUNT        3
+#define ALARM_DEBOUNCE_COUNT        30      /* 30 ticks = 300ms */
 #define BUZZER_PWM_FREQ_HZ          2000
 #define SYSTEM_TICK_MS              10
 
@@ -72,8 +71,8 @@ typedef enum {
 static volatile SystemState_t g_state = STATE_SAFE;
 static volatile uint32_t g_adc_raw = 0;
 static volatile uint32_t g_adc_filtered = 0;
-static volatile uint32_t g_baseline = 0;
-static volatile uint32_t g_alarm_threshold = 0;
+static volatile uint32_t g_baseline = 0;          /* Now stores PPM */
+static volatile uint32_t g_alarm_threshold = 0;   /* Now stores PPM */
 static volatile uint8_t g_dig_detected = 0;
 static volatile uint8_t g_debounce_counter = 0;
 static volatile uint32_t g_tick = 0;
@@ -165,9 +164,7 @@ PUTCHAR_PROTOTYPE {
 }
 
 /* ========================== ADC / FILTER ============================== */
-static uint32_t adc_buffer[ADC_BUF_LEN];
-static uint32_t adc_sum = 0;
-static uint8_t adc_idx = 0;
+static uint16_t adc_buffer[ADC_BUF_LEN];
 
 static uint32_t adc_to_mv(uint32_t adc_val) {
     return (adc_val * ADC_VREF_MV) / ADC_MAX_VALUE;
@@ -181,20 +178,11 @@ static uint32_t sensor_voltage_to_ppm(uint32_t mv) {
      * This returns a representative value for demonstration. */
     uint32_t sensor_mv = mv * 2; /* undo divider */
     /* Heuristic: higher voltage = lower Rs = higher gas concentration */
-    /* PPM ~ (Vc - Vout) * k / Vout. Here Vc = 5V (5000mV). */
-    if (sensor_mv >= 4950) return 0;
-    uint32_t ppm = (5000 - sensor_mv) / 5; /* rough linearized placeholder */
+    /* Fixed polarity: PPM increases with sensor voltage */
+    if (sensor_mv >= 5000) return 9999;
+    uint32_t ppm = sensor_mv / 5; /* rough linearized placeholder */
     if (ppm > 9999) ppm = 9999;
     return ppm;
-}
-
-static void filter_adc(void) {
-    uint32_t raw = adc_buffer[adc_idx];
-    adc_sum += raw;
-    adc_sum -= adc_buffer[(adc_idx + 1) % ADC_BUF_LEN];
-    adc_buffer[adc_idx] = raw;
-    adc_idx = (adc_idx + 1) % ADC_BUF_LEN;
-    g_adc_filtered = adc_sum >> MOVING_AVG_SHIFT;
 }
 
 /* ========================== HAL INITIALIZATION ======================== */
@@ -205,6 +193,7 @@ static void MX_ADC1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_USART1_UART_Init(void);
+static void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim); /* Forward declaration */
 
 int main(void) {
     HAL_Init();
@@ -241,26 +230,29 @@ int main(void) {
         HAL_Delay(10);
         baseline_sum += g_adc_filtered;
     }
-    g_baseline = baseline_sum / 500;
+    uint32_t baseline_adc = baseline_sum / 500;
+    uint32_t baseline_mv = adc_to_mv(baseline_adc);
+    g_baseline = sensor_voltage_to_ppm(baseline_mv);
     g_alarm_threshold = g_baseline + ALARM_THRESHOLD_PPM;
-    if (g_alarm_threshold < g_baseline) g_alarm_threshold = g_baseline + 500;
 
     lcd_clear();
     lcd_set_cursor(0, 0);
     lcd_print("System Ready");
-    printf("Gas Detector initialized. Baseline=%lu, Threshold=%lu\r\n", g_baseline, g_alarm_threshold);
+    printf("Gas Detector initialized. Baseline=%lu ppm, Threshold=%lu ppm\r\n", g_baseline, g_alarm_threshold);
 
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
 
     while (1) {
         HAL_Delay(SYSTEM_TICK_MS);
-        g_tick += SYSTEM_TICK_MS;
+        g_tick = HAL_GetTick(); /* Prevent drift if HAL_Delay blocks */
 
         /* Read digital output */
         g_dig_detected = (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_15) == GPIO_PIN_RESET) ? 1 : 0;
         /* MQ-6 DO is active LOW when gas detected (verify module variant) */
 
-        uint32_t adc_mv = adc_to_mv(g_adc_filtered);
+        /* Snapshot ADC to prevent race condition mid-loop */
+        uint32_t current_adc = g_adc_filtered;
+        uint32_t adc_mv = adc_to_mv(current_adc);
         uint32_t ppm = sensor_voltage_to_ppm(adc_mv);
 
         /* Hysteresis logic */
@@ -329,29 +321,28 @@ int main(void) {
             __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);     /* Buzzer OFF */
         }
 
-        /* LCD update every 500ms */
+        /* LCD update every 500ms without clear to prevent flicker */
         if ((g_tick % 500) == 0) {
-            lcd_clear();
             lcd_set_cursor(0, 0);
             if (!g_warmup_done) {
-                lcd_print("Warming up...");
+                lcd_print("Warming up...   ");
             } else {
                 if (g_state == STATE_SAFE) {
-                    lcd_printf("SAFE  %4lu ppm", ppm);
+                    lcd_printf("SAFE  %4lu ppm ", ppm);
                 } else if (g_state == STATE_WARNING) {
-                    lcd_printf("WARN  %4lu ppm", ppm);
+                    lcd_printf("WARN  %4lu ppm ", ppm);
                 } else {
-                    lcd_printf("ALARM %4lu ppm", ppm);
+                    lcd_printf("ALARM %4lu ppm ", ppm);
                 }
                 lcd_set_cursor(1, 0);
-                lcd_printf("DO:%s", g_dig_detected ? "YES" : "NO ");
+                lcd_printf("DO:%s   ", g_dig_detected ? "YES" : "NO ");
             }
         }
 
         /* UART logging every 1 second */
         if ((g_tick % 1000) == 0) {
             printf("Tick=%lu ADC=%lu mV=%lu ppm=%lu DO=%d State=%d\r\n",
-                   g_tick, g_adc_filtered, adc_mv, ppm, g_dig_detected, g_state);
+                   g_tick, current_adc, adc_mv, ppm, g_dig_detected, g_state);
         }
     }
 }
@@ -364,9 +355,9 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
         for (int i = 0; i < ADC_BUF_LEN; i++) {
             sum += adc_buffer[i];
         }
-        g_adc_raw = sum >> MOVING_AVG_SHIFT;
+        g_adc_raw = sum / ADC_BUF_LEN;
         g_adc_filtered = g_adc_raw; /* update filtered value */
-        HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buffer, ADC_BUF_LEN);
+        /* DMA is circular, no need to restart */
     }
 }
 
@@ -375,6 +366,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 void SystemClock_Config(void) {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+    RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
     RCC_OscInitStruct.HSEState = RCC_HSE_ON;
@@ -383,6 +375,13 @@ void SystemClock_Config(void) {
     RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
     RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+        Error_Handler();
+    }
+
+    /* Fix: Set ADC clock prescaler to stay within 14MHz limit (72/6 = 12MHz) */
+    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
+    PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV6;
+    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
         Error_Handler();
     }
 
@@ -403,34 +402,44 @@ static void MX_GPIO_Init(void) {
 
     GPIO_InitTypeDef GPIO_InitStruct = {0};
 
-    /* PA0: ADC input (analog) */
     /* PA1: TIM2 CH2 (alternate function push-pull) */
-    /* PA9/PA10: USART1 (AF push-pull) */
-    GPIO_InitStruct.Pin = GPIO_PIN_1 | GPIO_PIN_9 | GPIO_PIN_10;
+    GPIO_InitStruct.Pin = GPIO_PIN_1;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    /* PA9: USART1 TX (alternate function push-pull) */
+    GPIO_InitStruct.Pin = GPIO_PIN_9;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    /* PA10: USART1 RX (input floating) */
+    GPIO_InitStruct.Pin = GPIO_PIN_10;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
     /* PB6, PB7: I2C1 (alternate function open-drain) */
     GPIO_InitStruct.Pin = GPIO_PIN_6 | GPIO_PIN_7;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     /* PB12: Relay (output) */
     /* PB13: Red LED (output) */
     /* PB14: Green LED (output) */
-    /* PB15: MQ-6 DO (input) */
-    GPIO_InitStruct.Pin = GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15;
+    GPIO_InitStruct.Pin = GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-    /* PB15 input mode override */
+    /* PB15: MQ-6 DO (input) */
     GPIO_InitStruct.Pin = GPIO_PIN_15;
     GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     /* Initial states */
@@ -449,6 +458,21 @@ void DMA1_Channel1_IRQHandler(void) {
 
 static void MX_ADC1_Init(void) {
     __HAL_RCC_ADC1_CLK_ENABLE();
+
+    /* DMA configuration must happen BEFORE HAL_ADC_Init so MspInit can link it */
+    hdma_adc1.Instance = DMA1_Channel1;
+    hdma_adc1.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_adc1.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_adc1.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_adc1.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD; /* ADC DR is 16-bit */
+    hdma_adc1.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
+    hdma_adc1.Init.Mode = DMA_CIRCULAR;
+    hdma_adc1.Init.Priority = DMA_PRIORITY_LOW;
+    if (HAL_DMA_Init(&hdma_adc1) != HAL_OK) {
+        Error_Handler();
+    }
+    __HAL_LINKDMA(&hadc1, DMA_Handle, hdma_adc1);
+
     hadc1.Instance = ADC1;
     hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
     hadc1.Init.ContinuousConvMode = ENABLE;
@@ -467,19 +491,6 @@ static void MX_ADC1_Init(void) {
     if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
         Error_Handler();
     }
-
-    hdma_adc1.Instance = DMA1_Channel1;
-    hdma_adc1.Init.Direction = DMA_PERIPH_TO_MEMORY;
-    hdma_adc1.Init.PeriphInc = DMA_PINC_DISABLE;
-    hdma_adc1.Init.MemInc = DMA_MINC_ENABLE;
-    hdma_adc1.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
-    hdma_adc1.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
-    hdma_adc1.Init.Mode = DMA_CIRCULAR;
-    hdma_adc1.Init.Priority = DMA_PRIORITY_LOW;
-    if (HAL_DMA_Init(&hdma_adc1) != HAL_OK) {
-        Error_Handler();
-    }
-    __HAL_LINKDMA(&hadc1, DMA_Handle, hdma_adc1);
 }
 
 static void MX_I2C1_Init(void) {
@@ -507,7 +518,7 @@ static void MX_TIM2_Init(void) {
     htim2.Instance = TIM2;
     htim2.Init.Prescaler = 71;
     htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-    htim2.Init.Period = 999; /* 1kHz timer base */
+    htim2.Init.Period = 499; /* 72MHz / 72 / 500 = 2 kHz */
     htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
     htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
     if (HAL_TIM_Base_Init(&htim2) != HAL_OK) {
@@ -552,6 +563,7 @@ static void MX_USART1_UART_Init(void) {
 
 void Error_Handler(void) {
     __disable_irq();
+    __HAL_RCC_GPIOB_CLK_ENABLE(); /* Ensure clock is on if called early */
     while (1) {
         HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_13);
         HAL_Delay(100);
@@ -564,7 +576,7 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim) {
         GPIO_InitTypeDef GPIO_InitStruct = {0};
         GPIO_InitStruct.Pin = GPIO_PIN_1;
         GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
         HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
     }
 }
