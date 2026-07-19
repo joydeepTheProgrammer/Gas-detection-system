@@ -213,7 +213,7 @@ main()
 ```c
 #define ALARM_THRESHOLD_PPM     1000    /* Base threshold */
 #define HYSTERESIS_PPM          200     /* ±200 ppm hysteresis */
-#define ALARM_DEBOUNCE_COUNT    3       /* 3 confirmations required */
+#define ALARM_DEBOUNCE_COUNT    30       /* 30 confirmations required */
 ```
 
 **SAFE → WARNING:** ppm >= (baseline + 1000 + 200) for 3 consecutive ticks  
@@ -405,10 +405,10 @@ Tick=XXXXX ADC=XXXX mV=XXXX ppm=XXXX DO=X State=X
 
 ```
 Gas Detector initialized. Baseline=2048, Threshold=3048
-Tick=001000 ADC=2048 mV=1650 ppm=0340 DO=0 State=0
-Tick=002000 ADC=2048 mV=1650 ppm=0340 DO=0 State=0
-Tick=003000 ADC=3120 mV=2512 ppm=0497 DO=1 State=1
-Tick=004000 ADC=3850 mV=3100 ppm=0380 DO=1 State=2
+Tick=001000 ADC=2048 mV=1650 ppm=0660 DO=0 State=0
+Tick=002000 ADC=2048 mV=1650 ppm=0660 DO=0 State=0
+Tick=003000 ADC=3120 mV=2512 ppm=1004 DO=1 State=1
+Tick=004000 ADC=3850 mV=3100 ppm=1240 DO=1 State=2
 Tick=005000 ADC=2100 mV=1695 ppm=0326 DO=0 State=2
 Tick=006000 ADC=2050 mV=1655 ppm=0338 DO=0 State=0
 ```
