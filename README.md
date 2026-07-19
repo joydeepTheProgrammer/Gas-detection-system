@@ -30,7 +30,7 @@
 
 ## Overview
 
-A production-grade gas leak detection system using the **MQ-6 sensor** with STM32F103C8 microcontroller. The system features real-time gas concentration monitoring, hysteresis-based state transitions with debouncing, safety relay control, PWM buzzer alarm, I2C LCD display, and UART debug logging.
+A production-grade gas leak detection system using the **MQ-6 sensor** with an STM32F103C8 microcontroller. The system features real-time gas concentration monitoring, hysteresis-based state transitions with debouncing, safety relay control, PWM buzzer alarm, I2C LCD display, and UART debug logging.
 
 ### Key Features
 
