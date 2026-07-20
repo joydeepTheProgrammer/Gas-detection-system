@@ -24,7 +24,7 @@
 11. [Configuration](#configuration)
 12. [Troubleshooting](#troubleshooting)
 13. [Safety Notes](#safety-notes)
-14. [License](#license)
+14. [MIT License](#mit-license)
 
 ---
 
