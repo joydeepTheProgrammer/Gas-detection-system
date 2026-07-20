@@ -1,7 +1,7 @@
 # Gas Detection & Safety System
 
 
-**Version:** 1.0  
+**Version:** 2.0  
 **Date:** 2026-06-13  
 **Target:** STM32F103C8Tx (Cortex-M3, 72 MHz)  
 **Sensor:** MQ-6 Gas Sensor Module                                                                  
