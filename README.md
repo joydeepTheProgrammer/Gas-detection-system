@@ -557,16 +557,6 @@ Tick=006000 ADC=2050 mV=1655 ppm=0331 DO=0 State=0
 - [PCF8574 Datasheet](https://www.ti.com/lit/ds/symlink/pcf8574.pdf)
 ---
 
-# License
-
-Unless otherwise specified, all content in this repository—including, but not
-limited to, software source code, firmware, hardware design files (schematics,
-PCB layouts, Gerber files, BOMs, CAD files), documentation, configuration
-files, examples, and supporting materials—is made available under the MIT
-License.
-
----
-
 ## MIT License
 
 Copyright (c) 2026 Joydeep Majumdar
